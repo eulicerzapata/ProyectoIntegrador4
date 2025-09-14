@@ -108,6 +108,15 @@ engine = get_engine(SQLITE_BD_ABSOLUTE_PATH)
 results = run_queries(engine)
 ```
 
+### Opción 4: Dashboard Interactivo 📊
+```bash
+# Ejecutar dashboard de Streamlit
+python run_dashboard.py
+# o directamente:
+streamlit run dashboard.py
+```
+El dashboard se abrirá en `http://localhost:8501` con visualizaciones interactivas.
+
 ## 📈 Análisis Disponibles
 
 ### Ingresos
@@ -123,6 +132,13 @@ results = run_queries(engine)
 - Pedidos por día y feriados públicos
 - Relación entre valor de flete y peso
 
+### Dashboard Interactivo 🆕
+- **Resumen ejecutivo**: KPIs principales y evolución temporal
+- **Análisis de ingresos**: Categorías top y bottom performers
+- **Performance de entregas**: Métricas de tiempo y precisión
+- **Distribución geográfica**: Concentración por estados
+- **5 visualizaciones principales** que responden al problema de negocio
+
 ## 🧪 Tests
 
 Ejecutar tests unitarios:
@@ -134,7 +150,22 @@ python -m pytest tests/
 
 - Python 3.9+
 - SQLite
-- Librerías: pandas, plotly, sqlalchemy, requests
+- Librerías: pandas, plotly, sqlalchemy, requests, streamlit
+
+## 🎯 Características del Dashboard
+
+### 5 Visualizaciones Principales
+1. **Evolución de Ingresos**: Líneas temporales mensuales 2017-2018
+2. **Top Categorías**: Barras horizontales de categorías más rentables  
+3. **Distribución Geográfica**: Ingresos por estado (top 15)
+4. **Performance de Entregas**: Tiempo real vs estimado por mes
+5. **KPIs Ejecutivos**: Panel de métricas principales
+
+### Navegación Intuitiva
+- **Resumen Ejecutivo**: Vista general con insights clave
+- **Análisis de Ingresos**: Deep dive en categorías y tendencias
+- **Performance de Entregas**: Métricas de cumplimiento y eficiencia  
+- **Distribución Geográfica**: Concentración y oportunidades por región
 
 ## 🤝 Contribución
 
