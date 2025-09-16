@@ -5,10 +5,11 @@
 
 SELECT 
     c.customer_state,
-    SUM(oi.price + oi.freight_value) AS Revenue
+   -- SUM(oi.price + oi.freight_value) AS Revenue,
+    SUM(oi.payment_value) AS Revenue
 FROM olist_orders o
 INNER JOIN olist_customers c ON o.customer_id = c.customer_id
-INNER JOIN olist_order_items oi ON o.order_id = oi.order_id
+INNER JOIN olist_order_payments oi ON o.order_id = oi.order_id
 WHERE o.order_status = 'delivered' 
     AND o.order_delivered_customer_date IS NOT NULL
 GROUP BY c.customer_state
