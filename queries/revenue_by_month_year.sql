@@ -5,16 +5,37 @@
 -- Year2017, con los ingresos por mes de 2017 (0.00 si no existe); y
 -- Year2018, con los ingresos por mes de 2018 (0.00 si no existe).
 
-WITH month_year_revenue AS (
+WITH price_per_order AS (
     SELECT 
-        STRFTIME('%m', o.order_delivered_customer_date) AS month_no,
-        STRFTIME('%Y', o.order_delivered_customer_date) AS year,
-        SUM(oi.price + oi.freight_value) AS revenue
+        o.order_id, 
+        MIN(op.payment_value) AS total_price,
+        o.order_delivered_customer_date
     FROM olist_orders o
-    INNER JOIN olist_order_items oi ON o.order_id = oi.order_id
-    WHERE o.order_status = 'delivered' 
-        AND o.order_delivered_customer_date IS NOT NULL
-    GROUP BY STRFTIME('%m', o.order_delivered_customer_date), STRFTIME('%Y', o.order_delivered_customer_date)
+    INNER JOIN olist_order_payments op ON o.order_id = op.order_id
+    WHERE o.order_status = 'delivered' AND o.order_delivered_customer_date IS NOT NULL
+    GROUP BY o.order_id, o.order_delivered_customer_date
+),
+freight_per_order AS (
+    SELECT 
+        order_id, 
+        freight_value
+    FROM olist_order_items
+    WHERE order_item_id = 1
+),
+order_totals AS (
+    SELECT 
+        ppo.order_id,
+        ppo.total_price AS total,
+        ppo.order_delivered_customer_date
+    FROM price_per_order ppo
+),
+month_year_revenue AS (
+    SELECT 
+        STRFTIME('%m', ot.order_delivered_customer_date) AS month_no,
+        STRFTIME('%Y', ot.order_delivered_customer_date) AS year,
+        SUM(ot.total) AS revenue
+    FROM order_totals ot
+    GROUP BY STRFTIME('%m', ot.order_delivered_customer_date), STRFTIME('%Y', ot.order_delivered_customer_date)
 ),
 months AS (
     SELECT '01' AS month_no, 'Jan' AS month
@@ -33,10 +54,11 @@ months AS (
 SELECT 
     m.month_no,
     m.month,
-    COALESCE(SUM(CASE WHEN myr.year = '2016' THEN myr.revenue END), 0.0) AS Year2016,
-    COALESCE(SUM(CASE WHEN myr.year = '2017' THEN myr.revenue END), 0.0) AS Year2017,
-    COALESCE(SUM(CASE WHEN myr.year = '2018' THEN myr.revenue END), 0.0) AS Year2018
+    COALESCE(myr2016.revenue, 0.0) AS Year2016,
+    COALESCE(myr2017.revenue, 0.0) AS Year2017,
+    COALESCE(myr2018.revenue, 0.0) AS Year2018
 FROM months m
-LEFT JOIN month_year_revenue myr ON m.month_no = myr.month_no
-GROUP BY m.month_no, m.month
+LEFT JOIN month_year_revenue myr2016 ON m.month_no = myr2016.month_no AND myr2016.year = '2016'
+LEFT JOIN month_year_revenue myr2017 ON m.month_no = myr2017.month_no AND myr2017.year = '2017'
+LEFT JOIN month_year_revenue myr2018 ON m.month_no = myr2018.month_no AND myr2018.year = '2018'
 ORDER BY m.month_no;
