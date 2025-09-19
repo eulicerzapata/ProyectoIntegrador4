@@ -96,6 +96,70 @@ def load_delivery_comparison():
     df = pd.DataFrame(data)
     return df
 
+
+# =========================
+# Helper: filtros sidebar
+# =========================
+def create_sidebar_filters(revenue_df: pd.DataFrame, categories_df: pd.DataFrame, states_df: pd.DataFrame):
+    """Crea controles en la barra lateral y devuelve un diccionario con filtros seleccionados."""
+    st.sidebar.markdown("---")
+    st.sidebar.header("Filtros")
+
+    # Año (toma las columnas YearXXXX del dataframe de revenue)
+    years = []
+    for c in revenue_df.columns:
+        if c.startswith("Year"):
+            try:
+                years.append(int(c.replace("Year", "")))
+            except Exception:
+                continue
+    years = sorted(years)
+    # Añadir opción 'All' para que por defecto no se aplique filtro por año
+    year_options = ["All"] + years
+    year = st.sidebar.selectbox("Año", options=year_options, index=0)
+
+    # Estado
+    states = list(states_df['customer_state'].dropna().unique()) if 'customer_state' in states_df.columns else []
+    # Por defecto no seleccionar estados (equivalente a 'sin filtro')
+    states_selected = st.sidebar.multiselect("Estado(s)", options=sorted(states), default=[])
+
+    # Categoría
+    cats = list(categories_df['Category'].dropna().unique()) if 'Category' in categories_df.columns else []
+    # Por defecto no seleccionar categorías
+    cats_selected = st.sidebar.multiselect("Categoría(s)", options=sorted(cats), default=[])
+
+    # Mes (opcional)
+    months = list(revenue_df['month'].dropna().unique()) if 'month' in revenue_df.columns else []
+    months_selected = st.sidebar.multiselect("Mes(es)", options=months, default=[])
+
+    return {
+        'year': year,
+        'states': states_selected,
+        'categories': cats_selected,
+        'months': months_selected,
+    }
+
+
+def apply_filters_df(df: pd.DataFrame, filters: dict):
+    """Aplica filtros básicos a un DataFrame según keys: states, categories, months."""
+    if df is None or df.empty:
+        return df
+
+    res = df.copy()
+    if 'customer_state' in res.columns and filters.get('states'):
+        if filters['states']:
+            res = res[res['customer_state'].isin(filters['states'])]
+
+    if 'Category' in res.columns and filters.get('categories'):
+        if filters['categories']:
+            res = res[res['Category'].isin(filters['categories'])]
+
+    if 'month' in res.columns and filters.get('months'):
+        if filters['months']:
+            res = res[res['month'].isin(filters['months'])]
+
+    return res
+
 # ===================================================================================
 # FUNCIÓN PRINCIPAL DEL DASHBOARD - SISTEMA DE NAVEGACIÓN
 # ===================================================================================
@@ -106,31 +170,40 @@ def main():
     Streamlit ejecuta todo el código de arriba hacia abajo cada vez que hay interacción.
     Usamos selectbox para controlar qué sección mostrar.
     """
-    # Crear menú de navegación en la barra lateral
+    # Crear menú de navegación en la barra lateral PRIMERO (para que aparezca arriba)
     menu_options = [
         "📈 Resumen Ejecutivo",      # Vista general con KPIs principales
         "💰 Análisis de Ingresos",   # Deep dive en categorías y tendencias
         "🚚 Performance de Entregas", # Métricas de cumplimiento
         "🗺️ Distribución Geográfica" # Análisis por estados
     ]
-    
+
     # selectbox crea un menú desplegable - el usuario elige una opción
     selected_page = st.sidebar.selectbox("Selecciona una sección:", menu_options)
+
+    # Cargar datos una vez (después de la selección de página) para poblar filtros
+    revenue_df = load_revenue_by_month()
+    categories_df = load_top_categories()
+    states_df = load_revenue_by_state()
+    delivery_df = load_delivery_comparison()
+
+    # Crear filtros en la barra lateral
+    filters = create_sidebar_filters(revenue_df, categories_df, states_df)
     
     # Según la selección, mostrar la página correspondiente
     if selected_page == "📈 Resumen Ejecutivo":
-        show_executive_summary()
+        show_executive_summary(filters, revenue_df, categories_df, states_df)
     elif selected_page == "💰 Análisis de Ingresos":
-        show_revenue_analysis()
+        show_revenue_analysis(filters, categories_df)
     elif selected_page == "🚚 Performance de Entregas":
-        show_delivery_analysis()
+        show_delivery_analysis(filters, delivery_df)
     elif selected_page == "🗺️ Distribución Geográfica":
-        show_geographic_analysis()
+        show_geographic_analysis(filters, states_df)
 
 # ===================================================================================
 # PÁGINA 1: RESUMEN EJECUTIVO
 # ===================================================================================
-def show_executive_summary():
+def show_executive_summary(filters, revenue_df=None, categories_df=None, states_df=None):
     """
     Página de resumen ejecutivo con métricas principales
     
@@ -142,9 +215,15 @@ def show_executive_summary():
     st.header("📈 Resumen Ejecutivo")
     
     # Cargar todos los datos necesarios para esta página
-    revenue_df = load_revenue_by_month()
-    categories_df = load_top_categories()
-    states_df = load_revenue_by_state()
+    # Si los DataFrames se pasaron desde main, úsalos, sino cárgalos
+    revenue_df = revenue_df if revenue_df is not None else load_revenue_by_month()
+    categories_df = categories_df if categories_df is not None else load_top_categories()
+    states_df = states_df if states_df is not None else load_revenue_by_state()
+
+    # Aplicar filtros de sidebar
+    revenue_df = apply_filters_df(revenue_df, filters)
+    categories_df = apply_filters_df(categories_df, filters)
+    states_df = apply_filters_df(states_df, filters)
     
     # ===================================================================================
     # CÁLCULO DE MÉTRICAS PRINCIPALES
@@ -272,7 +351,7 @@ def show_executive_summary():
 # ===================================================================================
 # PÁGINA 2: ANÁLISIS DE INGRESOS
 # ===================================================================================
-def show_revenue_analysis():
+def show_revenue_analysis(filters, categories_df=None):
     """
     Página de análisis detallado de ingresos
     
@@ -286,7 +365,8 @@ def show_revenue_analysis():
     # Gráfico de top categorías
     st.subheader("🏆 Top 10 Categorías por Ingresos")
     
-    categories_df = load_top_categories()
+    categories_df = categories_df if categories_df is not None else load_top_categories()
+    categories_df = apply_filters_df(categories_df, filters)
     
     # Usar plotly.express para gráfico de barras rápido
     fig = px.bar(
@@ -346,11 +426,12 @@ def show_revenue_analysis():
             least_display['Revenue'] = least_display['Revenue'].apply(lambda x: f"${x:,.0f}")
             st.dataframe(least_display, hide_index=True)
 
-def show_delivery_analysis():
+def show_delivery_analysis(filters, delivery_df=None):
     """Página de análisis de performance de entregas"""
     st.header("🚚 Performance de Entregas")
     
-    delivery_df = load_delivery_comparison()
+    delivery_df = delivery_df if delivery_df is not None else load_delivery_comparison()
+    delivery_df = apply_filters_df(delivery_df, filters)
     
     # Gráfico de comparación tiempos reales vs estimados
     st.subheader("⏱️ Tiempo Real vs Estimado de Entrega")
@@ -427,6 +508,8 @@ def show_delivery_analysis():
     avg_real_2018 = delivery_df['Year2018_real_time'].dropna().mean()
     avg_est_2016 = delivery_df['Year2016_estimated_time'].dropna().mean()
     avg_est_2017 = delivery_df['Year2017_estimated_time'].dropna().mean()
+    # Calcular promedio estimado 2018 aquí para que esté disponible antes de usarlo
+    avg_est_2018 = delivery_df['Year2018_estimated_time'].dropna().mean()
     
     with col1:
         if not pd.isna(avg_real_2016):
@@ -450,11 +533,24 @@ def show_delivery_analysis():
         )
     
     with col3:
-        st.metric(
-            label="⏱️ Tiempo Promedio Real 2018", 
-            value=f"{avg_real_2018:.1f} días",
-            delta=f"{((avg_real_2018-avg_real_2017)/avg_real_2017*100):+.1f}% vs 2017"
-        )
+        if not pd.isna(avg_real_2018):
+            # Preparar delta si existe el estimado, si no mostrar mensaje alternativo
+            if not pd.isna(avg_est_2018):
+                delta_text = f"vs {avg_est_2018:.1f} días estimado 2018"
+            else:
+                delta_text = "Estimado no disponible"
+
+            st.metric(
+                label="⏱️ Tiempo Promedio Real 2018",
+                value=f"{avg_real_2018:.1f} días",
+                delta=delta_text
+            )
+        else:
+            st.metric(
+                label="⏱️ Tiempo Promedio Real 2018",
+                value="Sin datos",
+                delta="Año en revisión"
+            )
     
     with col4:
         # Calcular precisión global de estimaciones (promedio de todos los años)
@@ -490,11 +586,12 @@ def show_delivery_analysis():
                 delta="En desarrollo"
             )
 
-def show_geographic_analysis():
+def show_geographic_analysis(filters, states_df=None):
     """Página de análisis geográfico"""
     st.header("🗺️ Distribución Geográfica")
     
-    states_df = load_revenue_by_state()
+    states_df = states_df if states_df is not None else load_revenue_by_state()
+    states_df = apply_filters_df(states_df, filters)
     
     # Gráfico de barras por estado
     st.subheader("💰 Ingresos por Estado")

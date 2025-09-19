@@ -14,17 +14,33 @@ def plot_revenue_by_month_year(df: DataFrame, year: int):
         df (DataFrame): Dataframe with revenue by month and year query result
         year (int): It could be 2016, 2017 or 2018
     """
-    matplotlib.rc_file_defaults()
-    sns.set_style(style=None, rc=None)
+    # Usar matplotlib directamente para evitar problemas con seaborn/pandas
+    fig, ax1 = plt.subplots(figsize=(12, 6))
 
-    _, ax1 = plt.subplots(figsize=(12, 6))
+    months = df["month"].astype(str).tolist()
+    values = df[f"Year{year}"].astype(float).tolist()
 
-    sns.lineplot(data=df[f"Year{year}"], marker="o", sort=False, ax=ax1)
+    # Línea de ingresos
+    ax1.plot(months, values, marker="o", color="#1f77b4", label=f"Ingresos {year}")
+    ax1.set_xlabel("Mes")
+    ax1.set_ylabel("Ingresos (R$)", color="#1f77b4")
+    ax1.tick_params(axis="y", labelcolor="#1f77b4")
+
+    # Barras en segundo eje (transparente)
     ax2 = ax1.twinx()
+    bar_positions = range(len(months))
+    ax2.bar(bar_positions, values, alpha=0.25, color="#ff7f0e", label=f"Ingresos {year} (bar)")
+    ax2.set_ylabel("Ingresos (R$)", color="#ff7f0e")
+    ax2.tick_params(axis="y", labelcolor="#ff7f0e")
 
-    sns.barplot(data=df, x="month", y=f"Year{year}", alpha=0.5, ax=ax2)
-    ax1.set_title(f"Revenue by month in {year}")
+    # Ajustar ticks x
+    ax1.set_xticks(bar_positions)
+    ax1.set_xticklabels(months, rotation=45)
 
+    ax1.set_title(f"Ingresos por mes en {year}")
+    ax1.grid(True, which="both", axis="y", linestyle="--", alpha=0.5)
+
+    fig.tight_layout()
     plt.show()
 
 
