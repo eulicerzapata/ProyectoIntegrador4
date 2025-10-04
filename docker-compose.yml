@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+
+  airflow-init:
+    image: apache/airflow:2.9.3
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create           --username airflow           --firstname Admin           --lastname User           --role Admin           --email admin@example.com           --password airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - PYTHONPATH=/opt/airflow
+    depends_on:
+      - postgres
+
+  webserver:
+    image: apache/airflow:2.9.3
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - PYTHONPATH=/opt/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./src:/opt/airflow/scripts:ro
+      - ./src:/opt/airflow/src:ro
+      - ./dataset:/opt/airflow/dataset:ro
+      - ./queries:/opt/airflow/queries:ro
+      - ./olist.db:/opt/airflow/olist.db
+      - ./query_results:/opt/airflow/query_results
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  scheduler:
+    image: apache/airflow:2.9.3
+    restart: always
+    depends_on:
+      - webserver
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - PYTHONPATH=/opt/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./src:/opt/airflow/scripts:ro
+      - ./src:/opt/airflow/src:ro
+      - ./dataset:/opt/airflow/dataset:ro
+      - ./queries:/opt/airflow/queries:ro
+      - ./olist.db:/opt/airflow/olist.db
+      - ./query_results:/opt/airflow/query_results
+    command: scheduler
+  streamlit:
+    image: python:3.10-slim
+    container_name: streamlit_dashboard
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./:/app:cached
+      - ./query_results:/app/query_results:cached
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && streamlit run dashboard.py --server.port 8501 --server.headless true --server.enableCORS false --server.address 0.0.0.0"
+
+volumes:
+  postgres-db-volume:
